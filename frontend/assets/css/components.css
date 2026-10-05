@@ -1678,6 +1678,11 @@
 
 .dropzone__icon { width: 34px; height: 34px; color: var(--text-faint); }
 
+@media (min-width: 1101px) {
+  /* The rail is a persistent first column on desktop — no drawer toggle. */
+  [data-drawer-toggle] { display: none; }
+}
+
 /* --------------------------------------------------------- responsive -- */
 @media (max-width: 1100px) {
   .app-shell,
@@ -1713,6 +1718,10 @@
   .app-rail[data-collapsed='true'] .rail-link { justify-content: flex-start !important; }
   .mobile-bar { display: block; }
   .app-main { padding-bottom: 96px; }
+
+  /* The mobile-bar "More" item owns the drawer trigger on small screens;
+     the header hamburger would be a second, competing control. */
+  .header-menu { display: none; }
 }
 
 @media (max-width: 560px) {

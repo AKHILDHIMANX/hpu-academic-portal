@@ -203,7 +203,7 @@ function headerMarkup() {
   const user = state.user ?? {};
   const roleLabel = ROLES[state.role]?.label ?? '';
   return `
-    <button class="btn btn--ghost btn--icon" type="button" data-drawer-toggle
+    <button class="btn btn--ghost btn--icon header-menu" type="button" data-drawer-toggle
             aria-label="Open navigation menu" aria-expanded="false">
       ${icon('menu')}
     </button>
