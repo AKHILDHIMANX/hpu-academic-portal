@@ -1,0 +1,2 @@
+# HPU Academic Portal -- root deps for Vercel Python builds
+Flask>=3.0,<4.0

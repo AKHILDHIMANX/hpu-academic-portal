@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en" data-page="error">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark light">
+<meta name="robots" content="noindex">
+<title>Page not found · HPU Academic Portal</title>
+
+<script>
+(function () {
+  var THEMES = ['noir', 'graphite', 'hdr', 'cream', 'alabaster'];
+  var saved = null;
+  try { saved = localStorage.getItem('hpu.theme'); } catch (e) { /* private mode */ }
+  document.documentElement.setAttribute(
+    'data-theme',
+    THEMES.indexOf(saved) > -1 ? saved : 'noir'
+  );
+})();
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="icon" href="/media/hpu-logo.png">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/portals.css">
+</head>
+
+<body data-page="error">
+<main class="notfound">
+  <div class="notfound__glow" aria-hidden="true"></div>
+
+  <a class="brand notfound__brand" href="/">
+    <img class="brand__mark" src="/media/hpu-logo.png" alt="" width="40" height="40">
+    <span class="brand__text">
+      <span class="brand__name">HPU Academic Portal</span>
+      <span class="brand__sub">Himachal Pradesh University</span>
+    </span>
+  </a>
+
+  <p class="notfound__code" aria-hidden="true">404</p>
+
+  <div class="notfound__body">
+    <p class="eyebrow">Lost file</p>
+    <h1 class="notfound__title">That page is not in the registry.</h1>
+    <p class="notfound__text">
+      The address you followed does not exist on this portal. If you were looking
+      for your attendance, results or a circular, the links below take you
+      straight there.
+    </p>
+
+    <div class="cluster" style="justify-content:center;gap:var(--space-2xs)">
+      <a class="btn btn--primary" href="/" data-magnetic>Student portal</a>
+      <a class="btn btn--secondary" href="/teacher">Faculty portal</a>
+      <a class="btn btn--ghost" href="/admin">Admin console</a>
+    </div>
+
+    <div class="cluster" style="justify-content:center;margin-top:var(--space-s)">
+      <button class="btn btn--ghost btn--sm" type="button" data-back>Go back</button>
+      <button class="btn btn--ghost btn--sm" type="button" data-theme-cycle>Cycle theme</button>
+    </div>
+  </div>
+
+  <p class="mono faint" style="font-size:0.62rem;letter-spacing:0.16em">
+    HIMACHAL PRADESH UNIVERSITY · SHIMLA 171001
+  </p>
+</main>
+
+<script type="module">
+  import { cycleTheme, watchTheme } from '/assets/js/core/theme.js';
+  import { initMotion } from '/assets/js/core/motion.js';
+
+  watchTheme();
+  initMotion();
+  document.querySelector('[data-back]')?.addEventListener('click', () => {
+    if (history.length > 1) history.back();
+    else location.replace('/');
+  });
+  document.querySelector('[data-theme-cycle]')?.addEventListener('click', () => cycleTheme());
+</script>
+</body>
+</html>

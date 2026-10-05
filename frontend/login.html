@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en" data-page="login">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="description" content="Himachal Pradesh University Academic Portal — secure sign-in for students, faculty and administrators.">
+<meta name="color-scheme" content="dark light">
+<title>Sign in · HPU Academic Portal</title>
+
+<!-- Theme is applied before first paint so there is never a flash of the
+     wrong colour scheme. Kept inline and tiny on purpose. -->
+<script>
+(function () {
+  var THEMES = ['noir', 'graphite', 'hdr', 'cream', 'alabaster'];
+  var saved = null;
+  try { saved = localStorage.getItem('hpu.theme'); } catch (e) { /* private mode */ }
+  document.documentElement.setAttribute(
+    'data-theme',
+    THEMES.indexOf(saved) > -1 ? saved : 'noir'
+  );
+})();
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="icon" href="/media/hpu-logo.png">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/portals.css">
+</head>
+
+<body data-page="login">
+  <a class="skip-link" href="#loginCard">Skip to the sign-in form</a>
+
+  <main class="auth-screen">
+
+    <!-- ============================ brand / marketing panel ============ -->
+    <aside class="auth-aside">
+      <div class="cluster cluster-between">
+        <a class="brand" href="/login">
+          <img class="brand__mark" src="/media/hpu-logo.png" alt="" width="38" height="38">
+          <span class="brand__text">
+            <span class="brand__name">HPU Academic Portal</span>
+            <span class="brand__sub">Himachal Pradesh University</span>
+          </span>
+        </a>
+        <span data-theme-picker></span>
+      </div>
+
+      <div class="stack" style="max-width:38ch">
+        <p class="eyebrow">One portal · three roles</p>
+        <h1 class="auth-aside__lede">
+          Every lecture, <em>mark</em> and circular — in one honest place.
+        </h1>
+        <p class="auth-aside__sub">
+          Live attendance computed from the database, grades resolved by the
+          university PL/SQL scale, and a complete audit trail of every
+          privileged action.
+        </p>
+      </div>
+
+      <div class="stack stack-s">
+        <div class="auth-feature" data-reveal>
+          <span class="auth-feature__icon" data-icon="checkCircle"></span>
+          <div>
+            <p class="auth-feature__title">Attendance you can trust</p>
+            <p class="auth-feature__text">
+              Totals are summed from 144 individual lecture records — nothing is
+              hard-coded, and a faculty punch updates your standing instantly.
+            </p>
+          </div>
+        </div>
+        <div class="auth-feature" data-reveal>
+          <span class="auth-feature__icon" data-icon="award"></span>
+          <div>
+            <p class="auth-feature__title">Grades from one scale</p>
+            <p class="auth-feature__text">
+              <code>hpu_grade_scale</code> decides the letter and the grade
+              point, so the transcript, the GPA chart and the admin console can
+              never disagree.
+            </p>
+          </div>
+        </div>
+        <div class="auth-feature" data-reveal>
+          <span class="auth-feature__icon" data-icon="shield"></span>
+          <div>
+            <p class="auth-feature__title">Role decided server-side</p>
+            <p class="auth-feature__text">
+              Your portal is chosen from the database at sign-in. A request that
+              claims a different role is rejected and logged.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="auth-metrics">
+        <div>
+          <p class="auth-metric__value" data-count="24">24</p>
+          <p class="auth-metric__label">Students</p>
+        </div>
+        <div>
+          <p class="auth-metric__value" data-count="144">144</p>
+          <p class="auth-metric__label">Lectures tracked</p>
+        </div>
+        <div>
+          <p class="auth-metric__value" data-count="6">6</p>
+          <p class="auth-metric__label">Courses</p>
+        </div>
+        <div>
+          <p class="auth-metric__value">5</p>
+          <p class="auth-metric__label">Themes</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============================ sign-in panel ====================== -->
+    <section class="auth-main">
+      <div class="auth-mobile-top">
+        <a class="brand" href="/login">
+          <img class="brand__mark" src="/media/hpu-logo.png" alt="" width="32" height="32">
+          <span class="brand__text">
+            <span class="brand__name">HPU Academic Portal</span>
+            <span class="brand__sub">Himachal Pradesh University</span>
+          </span>
+        </a>
+        <span data-theme-picker></span>
+      </div>
+
+      <div class="auth-card" id="loginCard">
+
+        <div class="auth-card__head">
+          <p class="eyebrow">Secure sign-in</p>
+          <h2>Welcome back</h2>
+          <p class="dim" style="font-size:var(--step--1)">
+            Use your university email or your roll number. Students may also
+            sign in with their roll number in place of the email.
+          </p>
+        </div>
+
+        <div id="loginAlert" hidden></div>
+
+        <!-- one-click demo identities served by the backend -->
+        <div class="stack stack-s">
+          <p class="field__label">Demo identity</p>
+          <div class="demo-grid" data-demo-grid>
+            <div class="skeleton" style="height:62px"></div>
+            <div class="skeleton" style="height:62px"></div>
+            <div class="skeleton" style="height:62px"></div>
+          </div>
+          <p class="field__hint">
+            Pick one to fill the form, or type your own credentials below.
+          </p>
+        </div>
+
+        <div class="divider">or</div>
+
+        <form class="auth-form" id="loginForm" novalidate>
+          <label class="field">
+            <span class="field__label">Email or roll number</span>
+            <span class="input-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 7 8.5 6 8.5-6"/>
+              </svg>
+              <input class="input" type="text" name="identifier" id="identifier"
+                     autocomplete="username" spellcheck="false" autocapitalize="none"
+                     placeholder="akhil.dhiman@hpu.ac.in" required
+                     aria-describedby="identifierError">
+            </span>
+            <span class="field__error" id="identifierError" hidden></span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Password</span>
+            <span class="input-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+              </svg>
+              <input class="input" type="password" name="password" id="password"
+                     autocomplete="current-password" placeholder="••••••••" required
+                     aria-describedby="passwordError">
+              <button class="input-action" type="button" data-reveal-password
+                      aria-label="Show password" aria-pressed="false">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </span>
+            <span class="field__error" id="passwordError" hidden></span>
+          </label>
+
+          <div class="cluster cluster-between">
+            <label class="switch">
+              <input type="checkbox" id="remember" checked>
+              <span class="switch__track"><span class="switch__thumb"></span></span>
+              <span style="font-size:var(--step--2);font-weight:700;color:var(--text-soft)">
+                Keep me signed in
+              </span>
+            </label>
+            <a class="field__hint" href="mailto:examcell@hpu.ac.in?subject=Portal%20access%20help">
+              Trouble signing in?
+            </a>
+          </div>
+
+          <button class="btn btn--primary btn--lg btn--block" type="submit"
+                  data-submit data-magnetic>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="4" y="10" width="16" height="11" rx="2"/>
+              <path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+            </svg>
+            Sign in to the portal
+          </button>
+
+          <p class="field__hint center">
+            Sessions are held in an <code>httpOnly</code> cookie, so a page
+            script can never read your token. Signing out revokes it on the
+            server.
+          </p>
+        </form>
+
+        <div class="cluster cluster-s" style="justify-content:space-between">
+          <span class="chip chip--ghost" data-scheme-label>SCHEME · PBKDF2-SHA256</span>
+          <button class="chip chip--ghost" type="button" data-theme-cycle
+                  style="cursor:pointer">Cycle theme <kbd>T</kbd></button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="/assets/js/login.js"></script>
+</body>
+</html>

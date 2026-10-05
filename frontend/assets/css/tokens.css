@@ -1,0 +1,451 @@
+/* =============================================================================
+   HPU ACADEMIC PORTAL — DESIGN TOKENS
+   -----------------------------------------------------------------------------
+   One source of truth for colour, type, space, radius, elevation and motion.
+   Every theme below is a complete, hand-tuned system -- not a hue rotation --
+   so switching themes preserves contrast and hierarchy. All five live in one
+   monochrome family: pure black, graphite, maximum-contrast white, warm cream
+   and cool alabaster.
+   ========================================================================== */
+
+/* ----------------------------------------------------------------- fonts -- */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* Type families ------------------------------------------------------- */
+  --font-display: 'Fraunces', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+               'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Code',
+               Menlo, Consolas, monospace;
+
+  /* Optical sizing for the display serif (variable font axis) ------------ */
+  --font-display-settings: 'SOFT' 0, 'WONK' 1, 'opsz' 40;
+
+  /* Modular type scale (1.25 ratio, 1.2 for small screens) --------------- */
+  --step--2: clamp(0.66rem, 0.63rem + 0.14vw, 0.72rem);
+  --step--1: clamp(0.79rem, 0.75rem + 0.18vw, 0.87rem);
+  --step-0:  clamp(0.94rem, 0.90rem + 0.22vw, 1.06rem);
+  --step-1:  clamp(1.13rem, 1.06rem + 0.34vw, 1.34rem);
+  --step-2:  clamp(1.35rem, 1.24rem + 0.55vw, 1.70rem);
+  --step-3:  clamp(1.62rem, 1.44rem + 0.88vw, 2.16rem);
+  --step-4:  clamp(1.94rem, 1.66rem + 1.40vw, 2.74rem);
+  --step-5:  clamp(2.33rem, 1.90rem + 2.10vw, 3.48rem);
+  --step-6:  clamp(2.80rem, 2.14rem + 3.20vw, 4.40rem);
+
+  /* Space scale (4px base) ---------------------------------------------- */
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs:  0.75rem;
+  --space-s:   1rem;
+  --space-m:   1.5rem;
+  --space-l:   2rem;
+  --space-xl:  3rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+
+  /* Radii --------------------------------------------------------------- */
+  --radius-3xs: 4px;
+  --radius-2xs: 8px;
+  --radius-xs:  12px;
+  --radius-s:   16px;
+  --radius-m:   22px;
+  --radius-l:   30px;
+  --radius-xl:  40px;
+  --radius-pill: 999px;
+
+  /* Motion -------------------------------------------------------------- */
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --dur-instant: 90ms;
+  --dur-fast:    160ms;
+  --dur-base:    260ms;
+  --dur-slow:    420ms;
+  --dur-slower:  680ms;
+
+  /* Layout -------------------------------------------------------------- */
+  --container:  1400px;
+  --container-narrow: 880px;
+  --header-h:   68px;
+  --rail-w:     268px;
+  --rail-w-collapsed: 76px;
+
+  /* Z-index scale ------------------------------------------------------- */
+  --z-base: 1;
+  --z-sticky: 100;
+  --z-rail: 200;
+  --z-header: 300;
+  --z-drawer: 400;
+  --z-modal: 500;
+  --z-toast: 600;
+  --z-curtain: 700;
+}
+
+/* =============================================================================
+   THEMES
+   -----------------------------------------------------------------------------
+   Five hand-tuned systems, all inside one monochrome family: pure black,
+   graphite, maximum-contrast white, warm cream and cool alabaster. Nothing
+   here is a hue rotation — each theme redefines surfaces, text, the accent,
+   elevation, glass and chart saturation so switching preserves contrast.
+
+   Surfaces run black -> graphite -> white -> cream -> alabaster.
+   State colours (success / warning / danger / info) stay deliberately
+   low-chroma: they carry meaning, they do not carry the palette.
+   The grade ramp is a lightness ramp (brighter = better) so a monochrome
+   chart of grades still reads as achievement.
+
+   Themes: noir · graphite · hdr · cream · alabaster
+   ========================================================================== */
+
+/* =============================================================================
+   THEME: NOIR  (default — true black, white accent)
+   ========================================================================== */
+:root,
+[data-theme='noir'] {
+  color-scheme: dark;
+  --scrim:         rgba(0, 0, 0, 0.62);
+  --scrim-strong:  rgba(0, 0, 0, 0.72);
+
+  --bg-base:      #000000;
+  --bg-deep:      #000000;
+  --bg-surface:   #08080a;
+  --bg-raised:    #101013;
+  --bg-overlay:   #18181c;
+  --bg-inset:     #050506;
+  --bg-hover:     rgba(255, 255, 255, 0.055);
+  --bg-active:    rgba(255, 255, 255, 0.11);
+
+  --line:         rgba(255, 255, 255, 0.115);
+  --line-strong:  rgba(255, 255, 255, 0.26);
+  --line-faint:   rgba(255, 255, 255, 0.055);
+
+  --text:         #ffffff;
+  --text-soft:    #c6c6ca;
+  --text-muted:   #8d8d93;
+  --text-faint:   #63636b;
+  --text-invert:  #000000;
+
+  --accent:       #ffffff;
+  --accent-soft:  rgba(255, 255, 255, 0.12);
+  --accent-line:  rgba(255, 255, 255, 0.42);
+  --accent-text:  #ffffff;
+  --accent-deep:  #b9b9bf;
+
+  --secondary:      #d6d6da;
+  --secondary-soft: rgba(214, 214, 218, 0.12);
+
+  --tertiary:      #ededf0;
+  --tertiary-soft: rgba(237, 237, 240, 0.10);
+
+  --brand:      #ffffff;
+  --brand-soft: rgba(255, 255, 255, 0.12);
+
+  --success:      #7ecfa0;  --success-soft: rgba(126, 207, 160, 0.13);
+  --warning:      #d9b872;  --warning-soft: rgba(217, 184, 114, 0.13);
+  --danger:       #d98b8b;  --danger-soft:  rgba(217, 139, 139, 0.13);
+  --info:         #9fbfd8;  --info-soft:    rgba(159, 191, 216, 0.13);
+
+  /* Lightness ramp: O brightest -> C dimmest, P a cool neutral, F the alarm. */
+  --grade-o:  #ffffff;  --grade-ap: #dedee3;  --grade-a:  #bcbcc4;
+  --grade-bp: #9c9ca6;  --grade-b:  #83838e;  --grade-c:  #6f6f7a;
+  --grade-p:  #b3bac1;  --grade-f:  #d98b8b;
+
+  --shadow-color: 0 0% 0%;
+  --shadow-sm: 0 1px 0 rgba(255, 255, 255, 0.045);
+  --shadow-md: 0 6px 20px -4px rgba(0, 0, 0, 0.9);
+  --shadow-lg: 0 20px 52px -14px rgba(0, 0, 0, 0.95);
+  --shadow-xl: 0 38px 96px -28px rgba(0, 0, 0, 1);
+  --glow-accent: 0 0 0 1px rgba(255, 255, 255, 0.5), 0 14px 44px -14px rgba(255, 255, 255, 0.28);
+
+  --mesh-1: rgba(255, 255, 255, 0.050);
+  --mesh-2: rgba(255, 255, 255, 0.030);
+  --mesh-3: rgba(255, 255, 255, 0.020);
+  --grid-line: rgba(255, 255, 255, 0.035);
+
+  --glass: rgba(8, 8, 10, 0.76);
+  --glass-line: rgba(255, 255, 255, 0.13);
+
+  --chart-sat: 14;
+}
+
+/* =============================================================================
+   THEME: GRAPHITE  (dark charcoal — softer than noir, still neutral)
+   ========================================================================== */
+[data-theme='graphite'] {
+  color-scheme: dark;
+  --scrim:         rgba(0, 0, 0, 0.62);
+  --scrim-strong:  rgba(0, 0, 0, 0.72);
+
+  --bg-base:      #131316;
+  --bg-deep:      #0a0a0c;
+  --bg-surface:   #1a1a1e;
+  --bg-raised:    #232328;
+  --bg-overlay:   #2b2b31;
+  --bg-inset:     #0f0f12;
+  --bg-hover:     rgba(255, 255, 255, 0.05);
+  --bg-active:    rgba(255, 255, 255, 0.10);
+
+  --line:         rgba(255, 255, 255, 0.105);
+  --line-strong:  rgba(255, 255, 255, 0.22);
+  --line-faint:   rgba(255, 255, 255, 0.05);
+
+  --text:         #f6f6f7;
+  --text-soft:    #c9c9ce;
+  --text-muted:   #919197;
+  --text-faint:   #6b6b73;
+  --text-invert:  #131316;
+
+  --accent:       #f2f2f4;
+  --accent-soft:  rgba(242, 242, 244, 0.13);
+  --accent-line:  rgba(242, 242, 244, 0.38);
+  --accent-text:  #ffffff;
+  --accent-deep:  #adadb4;
+
+  --secondary:      #d0d0d5;
+  --secondary-soft: rgba(208, 208, 213, 0.12);
+
+  --tertiary:      #e8e8ec;
+  --tertiary-soft: rgba(232, 232, 236, 0.10);
+
+  --brand:      #f2f2f4;
+  --brand-soft: rgba(242, 242, 244, 0.13);
+
+  --success:      #86cfa4;  --success-soft: rgba(134, 207, 164, 0.13);
+  --warning:      #d7b97a;  --warning-soft: rgba(215, 185, 122, 0.13);
+  --danger:       #d49090;  --danger-soft:  rgba(212, 144, 144, 0.13);
+  --info:         #a3bcd2;  --info-soft:    rgba(163, 188, 210, 0.13);
+
+  --grade-o:  #ffffff;  --grade-ap: #e3e3e7;  --grade-a:  #c4c4cb;
+  --grade-bp: #a6a6ae;  --grade-b:  #8a8a95;  --grade-c:  #75757f;
+  --grade-p:  #b7bcc2;  --grade-f:  #d49090;
+
+  --shadow-color: 0 0% 2%;
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.5);
+  --shadow-md: 0 5px 16px -2px hsl(var(--shadow-color) / 0.55);
+  --shadow-lg: 0 20px 48px -14px hsl(var(--shadow-color) / 0.66);
+  --shadow-xl: 0 38px 90px -26px hsl(var(--shadow-color) / 0.78);
+  --glow-accent: 0 0 0 1px rgba(255, 255, 255, 0.34), 0 14px 40px -14px rgba(255, 255, 255, 0.20);
+
+  --mesh-1: rgba(255, 255, 255, 0.045);
+  --mesh-2: rgba(255, 255, 255, 0.026);
+  --mesh-3: rgba(255, 255, 255, 0.018);
+  --grid-line: rgba(255, 255, 255, 0.032);
+
+  --glass: rgba(26, 26, 30, 0.78);
+  --glass-line: rgba(255, 255, 255, 0.11);
+
+  --chart-sat: 14;
+}
+
+/* =============================================================================
+   THEME: HDR  (pure white, maximum contrast — ink on paper)
+   ========================================================================== */
+[data-theme='hdr'] {
+  color-scheme: light;
+  --scrim:         rgba(18, 18, 20, 0.42);
+  --scrim-strong:  rgba(18, 18, 20, 0.52);
+
+  --bg-base:      #f4f4f5;
+  --bg-deep:      #e9e9eb;
+  --bg-surface:   #ffffff;
+  --bg-raised:    #ffffff;
+  --bg-overlay:   #ffffff;
+  --bg-inset:     #fafafa;
+  --bg-hover:     rgba(0, 0, 0, 0.045);
+  --bg-active:    rgba(0, 0, 0, 0.085);
+
+  --line:         rgba(0, 0, 0, 0.135);
+  --line-strong:  rgba(0, 0, 0, 0.30);
+  --line-faint:   rgba(0, 0, 0, 0.07);
+
+  --text:         #000000;
+  --text-soft:    #2a2a2e;
+  --text-muted:   #5c5c63;
+  --text-faint:   #8b8b92;
+  --text-invert:  #ffffff;
+
+  --accent:       #000000;
+  --accent-soft:  rgba(0, 0, 0, 0.07);
+  --accent-line:  rgba(0, 0, 0, 0.34);
+  --accent-text:  #000000;
+  --accent-deep:  #2a2a2a;
+
+  --secondary:      #45454a;
+  --secondary-soft: rgba(69, 69, 74, 0.08);
+
+  --tertiary:      #6a6a70;
+  --tertiary-soft: rgba(106, 106, 112, 0.07);
+
+  --brand:      #000000;
+  --brand-soft: rgba(0, 0, 0, 0.07);
+
+  --success:      #1f6b45;  --success-soft: rgba(31, 107, 69, 0.10);
+  --warning:      #7a5a10;  --warning-soft: rgba(122, 90, 16, 0.10);
+  --danger:       #8f1f1f;  --danger-soft:  rgba(143, 31, 31, 0.10);
+  --info:         #1e4a7a;  --info-soft:    rgba(30, 74, 122, 0.10);
+
+  --grade-o:  #000000;  --grade-ap: #1f1f22;  --grade-a:  #3d3d42;
+  --grade-bp: #5a5a61;  --grade-b:  #78787f;  --grade-c:  #97979e;
+  --grade-p:  #3f5566;  --grade-f:  #8f1f1f;
+
+  --shadow-color: 0 0% 0%;
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.07);
+  --shadow-md: 0 5px 18px -3px hsl(var(--shadow-color) / 0.12);
+  --shadow-lg: 0 20px 50px -14px hsl(var(--shadow-color) / 0.16);
+  --shadow-xl: 0 38px 92px -28px hsl(var(--shadow-color) / 0.22);
+  --glow-accent: 0 0 0 1px rgba(0, 0, 0, 0.28), 0 12px 34px -14px rgba(0, 0, 0, 0.32);
+
+  --mesh-1: rgba(0, 0, 0, 0.030);
+  --mesh-2: rgba(0, 0, 0, 0.020);
+  --mesh-3: rgba(0, 0, 0, 0.014);
+  --grid-line: rgba(0, 0, 0, 0.040);
+
+  --glass: rgba(255, 255, 255, 0.84);
+  --glass-line: rgba(0, 0, 0, 0.12);
+
+  --chart-sat: 10;
+}
+
+/* =============================================================================
+   THEME: CREAM  (warm creamy paper — the cosy light option)
+   ========================================================================== */
+[data-theme='cream'] {
+  color-scheme: light;
+  --scrim:         rgba(18, 18, 20, 0.42);
+  --scrim-strong:  rgba(18, 18, 20, 0.52);
+
+  --bg-base:      #fbf6ec;
+  --bg-deep:      #f1e9d9;
+  --bg-surface:   #fffcf4;
+  --bg-raised:    #ffffff;
+  --bg-overlay:   #ffffff;
+  --bg-inset:     #f4eee0;
+  --bg-hover:     rgba(76, 60, 36, 0.05);
+  --bg-active:    rgba(76, 60, 36, 0.09);
+
+  --line:         rgba(76, 60, 36, 0.145);
+  --line-strong:  rgba(76, 60, 36, 0.30);
+  --line-faint:   rgba(76, 60, 36, 0.07);
+
+  --text:         #1c1710;
+  --text-soft:    #4a4034;
+  --text-muted:   #6f6355;
+  --text-faint:   #9b8f7f;
+  --text-invert:  #fbf6ec;
+
+  --accent:       #1c1710;
+  --accent-soft:  rgba(28, 23, 16, 0.07);
+  --accent-line:  rgba(28, 23, 16, 0.30);
+  --accent-text:  #1c1710;
+  --accent-deep:  #0f0c08;
+
+  --secondary:      #5c5241;
+  --secondary-soft: rgba(92, 82, 65, 0.08);
+
+  --tertiary:      #7d7263;
+  --tertiary-soft: rgba(125, 114, 99, 0.07);
+
+  --brand:      #6b2626;
+  --brand-soft: rgba(107, 38, 38, 0.09);
+
+  --success:      #2c6a45;  --success-soft: rgba(44, 106, 69, 0.10);
+  --warning:      #7d5a12;  --warning-soft: rgba(125, 90, 18, 0.10);
+  --danger:       #8c2b22;  --danger-soft:  rgba(140, 43, 34, 0.10);
+  --info:         #294f6b;  --info-soft:    rgba(41, 79, 107, 0.10);
+
+  --grade-o:  #14110c;  --grade-ap: #2b251b;  --grade-a:  #453d2f;
+  --grade-bp: #5f564a;  --grade-b:  #7a7165;  --grade-c:  #968d81;
+  --grade-p:  #4a5a63;  --grade-f:  #8c2b22;
+
+  --shadow-color: 38 30% 50%;
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.18);
+  --shadow-md: 0 5px 18px -3px hsl(var(--shadow-color) / 0.22);
+  --shadow-lg: 0 20px 48px -14px hsl(var(--shadow-color) / 0.26);
+  --shadow-xl: 0 38px 92px -28px hsl(var(--shadow-color) / 0.32);
+  --glow-accent: 0 0 0 1px rgba(28, 23, 16, 0.28), 0 12px 34px -14px rgba(28, 23, 16, 0.30);
+
+  --mesh-1: rgba(28, 23, 16, 0.035);
+  --mesh-2: rgba(140, 43, 34, 0.028);
+  --mesh-3: rgba(28, 23, 16, 0.018);
+  --grid-line: rgba(76, 60, 36, 0.035);
+
+  --glass: rgba(255, 252, 244, 0.84);
+  --glass-line: rgba(76, 60, 36, 0.13);
+
+  --chart-sat: 12;
+}
+
+/* =============================================================================
+   THEME: ALABASTER  (cool porcelain white — clinical, high legibility)
+   ========================================================================== */
+[data-theme='alabaster'] {
+  color-scheme: light;
+  --scrim:         rgba(18, 18, 20, 0.42);
+  --scrim-strong:  rgba(18, 18, 20, 0.52);
+
+  --bg-base:      #f4f5f7;
+  --bg-deep:      #e7e9ee;
+  --bg-surface:   #ffffff;
+  --bg-raised:    #ffffff;
+  --bg-overlay:   #ffffff;
+  --bg-inset:     #eceef2;
+  --bg-hover:     rgba(24, 28, 38, 0.045);
+  --bg-active:    rgba(24, 28, 38, 0.085);
+
+  --line:         rgba(24, 28, 38, 0.135);
+  --line-strong:  rgba(24, 28, 38, 0.28);
+  --line-faint:   rgba(24, 28, 38, 0.065);
+
+  --text:         #0e1116;
+  --text-soft:    #333a45;
+  --text-muted:   #5d6674;
+  --text-faint:   #8b95a3;
+  --text-invert:  #ffffff;
+
+  --accent:       #0e1116;
+  --accent-soft:  rgba(14, 17, 22, 0.06);
+  --accent-line:  rgba(14, 17, 22, 0.28);
+  --accent-text:  #0e1116;
+  --accent-deep:  #05070a;
+
+  --secondary:      #414b59;
+  --secondary-soft: rgba(65, 75, 89, 0.08);
+
+  --tertiary:      #6b7686;
+  --tertiary-soft: rgba(107, 118, 134, 0.07);
+
+  --brand:      #0e1116;
+  --brand-soft: rgba(14, 17, 22, 0.06);
+
+  --success:      #22654a;  --success-soft: rgba(34, 101, 74, 0.10);
+  --warning:      #7a5a0c;  --warning-soft: rgba(122, 90, 12, 0.10);
+  --danger:       #8a2020;  --danger-soft:  rgba(138, 32, 32, 0.10);
+  --info:         #1f4468;  --info-soft:    rgba(31, 68, 104, 0.10);
+
+  --grade-o:  #0e1116;  --grade-ap: #1f242c;  --grade-a:  #343b45;
+  --grade-bp: #4a525d;  --grade-b:  #626b77;  --grade-c:  #7b848f;
+  --grade-p:  #3d5a68;  --grade-f:  #8a2020;
+
+  --shadow-color: 220 25% 45%;
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.14);
+  --shadow-md: 0 5px 18px -3px hsl(var(--shadow-color) / 0.16);
+  --shadow-lg: 0 20px 48px -14px hsl(var(--shadow-color) / 0.20);
+  --shadow-xl: 0 38px 92px -28px hsl(var(--shadow-color) / 0.26);
+  --glow-accent: 0 0 0 1px rgba(14, 17, 22, 0.26), 0 12px 34px -14px rgba(14, 17, 22, 0.26);
+
+  --mesh-1: rgba(14, 17, 22, 0.030);
+  --mesh-2: rgba(31, 68, 104, 0.026);
+  --mesh-3: rgba(14, 17, 22, 0.016);
+  --grid-line: rgba(24, 28, 38, 0.035);
+
+  --glass: rgba(255, 255, 255, 0.84);
+  --glass-line: rgba(24, 28, 38, 0.12);
+
+  --chart-sat: 10;
+}
+
+/* Colour-scheme aware text selection + scrollbar ----------------------- */

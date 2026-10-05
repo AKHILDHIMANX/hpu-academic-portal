@@ -1,0 +1,783 @@
+-- =============================================================================
+--  HIMACHAL PRADESH UNIVERSITY (HPU) -- ACADEMIC PORTAL
+--  Canonical production schema: Oracle Database 12c+ (PL/SQL)
+-- -----------------------------------------------------------------------------
+--  This file is the AUTHORITATIVE relational definition of the system.
+--  It is executed by the DBA / during deployment:
+--        sqlplus hpu/hpu@HPU-CLUSTER-SHIMLA-01 @schema.sql
+--
+--  Column names, data types and constraints are kept 1:1 identical to
+--  schema_sqlite.sql, which is the runtime mirror executed automatically by the
+--  Python backend so the portal can be demonstrated on any machine without an
+--  Oracle installation. Both files must be changed together.
+--
+--  Objects created:
+--    1. Drop utility (order-safe, per-table error trapping)
+--    2. Sequences
+--    3. Tables  (authentication, people, academics, assessment, content, audit)
+--    4. Indexes
+--    5. Package HPU_PORTAL_PKG  (all write operations as procedures)
+--    6. Triggers (validation + immutable audit trail)
+--    7. Views   (reporting / portal read models)
+--    8. Seed dataset
+-- =============================================================================
+
+SET DEFINE OFF
+SET SERVEROUTPUT ON
+
+-- -----------------------------------------------------------------------------
+-- 1. DROP UTILITY
+--    Each DROP is executed individually and traps OTHERS, so a missing table
+--    (-942) never aborts the loop. PURGE avoids recycling-bin bloat.
+-- -----------------------------------------------------------------------------
+DECLARE
+    TYPE t_table_names IS TABLE OF VARCHAR2(64);
+    l_tables t_table_names := t_table_names(
+        'HPU_AUDIT_LOG', 'HPU_AUTH_SESSION', 'HPU_ATTENDANCE_SESSION',
+        'HPU_WORKSHEET_SUBMISSION', 'HPU_WORKSHEET', 'HPU_E_LIBRARY',
+        'HPU_EXAM_SCHEDULE', 'HPU_PYQ_PAPER', 'HPU_NOTICE', 'HPU_MARK',
+        'HPU_ATTENDANCE', 'HPU_ENROLLMENT', 'HPU_TEACHER_ALLOCATION',
+        'HPU_COURSE', 'HPU_TEACHER', 'HPU_STUDENT', 'HPU_USER_AUTH',
+        'HPU_GRADE_SCALE'
+    );
+    l_dropped PLS_INTEGER := 0;
+BEGIN
+    FOR i IN 1 .. l_tables.COUNT LOOP
+        BEGIN
+            EXECUTE IMMEDIATE 'DROP TABLE ' || l_tables(i) || ' CASCADE CONSTRAINTS PURGE';
+            l_dropped := l_dropped + 1;
+        EXCEPTION
+            WHEN OTHERS THEN
+                IF SQLCODE != -942 THEN RAISE; END IF;   -- ignore "table does not exist"
+        END;
+    END LOOP;
+    DBMS_OUTPUT.PUT_LINE('[schema] dropped ' || l_dropped || ' table(s)');
+END;
+/
+
+-- -----------------------------------------------------------------------------
+-- 2. SEQUENCES
+-- -----------------------------------------------------------------------------
+CREATE SEQUENCE SEQ_HPU_USER       START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_STUDENT    START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_TEACHER    START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_COURSE     START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_ALLOC      START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_ENROLL     START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_ATTENDANCE START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_SESSION    START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_MARK       START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_PYQ        START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_SCHEDULE   START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_WORKSHEET  START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_SUBMISSION START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_ELIBRARY   START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_NOTICE     START WITH 101 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SEQ_HPU_AUDIT      START WITH 1 INCREMENT BY 1 NOCACHE;
+
+-- -----------------------------------------------------------------------------
+-- 3. TABLES
+-- -----------------------------------------------------------------------------
+
+-- 3.1 GRADE SCALE -------------------------------------------------------------
+CREATE TABLE HPU_GRADE_SCALE (
+    GRADE_LETTER  VARCHAR2(4)   PRIMARY KEY,
+    MIN_PERCENT   NUMBER(5,2)   NOT NULL,
+    MAX_PERCENT   NUMBER(5,2)   NOT NULL,
+    GRADE_POINT   NUMBER(3,1)   NOT NULL,
+    CLASSIFICATION VARCHAR2(40) NOT NULL,
+    CONSTRAINT CK_GRADE_RANGE CHECK (MIN_PERCENT <= MAX_PERCENT)
+);
+
+-- 3.2 USER AUTHENTICATION ----------------------------------------------------
+CREATE TABLE HPU_USER_AUTH (
+    USER_ID          NUMBER        PRIMARY KEY,
+    USER_CODE        VARCHAR2(40)  NOT NULL,               -- roll no / faculty code / admin id
+    EMAIL            VARCHAR2(120) NOT NULL,
+    PASSWORD_HASH    VARCHAR2(256) NOT NULL,               -- PBKDF2-HMAC-SHA256, 240k rounds
+    PASSWORD_SALT    VARCHAR2(64)  NOT NULL,
+    ROLE             VARCHAR2(20)  NOT NULL,
+    FULL_NAME        VARCHAR2(120) NOT NULL,
+    IS_ACTIVE        NUMBER(1)     DEFAULT 1 NOT NULL,
+    TOKEN_VERSION    NUMBER        DEFAULT 1 NOT NULL,     -- bump invalidates every issued token
+    FAILED_ATTEMPTS  NUMBER(2)     DEFAULT 0 NOT NULL,
+    LOCKED_UNTIL     TIMESTAMP,
+    LAST_LOGIN_AT    TIMESTAMP,
+    CREATED_AT       TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PHONE            VARCHAR2(32),
+    CONSTRAINT UK_USER_CODE  UNIQUE (USER_CODE),
+    CONSTRAINT UK_USER_EMAIL UNIQUE (EMAIL),
+    CONSTRAINT CK_USER_ROLE  CHECK (ROLE IN ('STUDENT', 'TEACHER', 'ADMIN'))
+);
+
+-- 3.3 STUDENTS ---------------------------------------------------------------
+CREATE TABLE HPU_STUDENT (
+    STUDENT_ID       NUMBER        PRIMARY KEY,
+    ROLL_NO          VARCHAR2(30)  NOT NULL,
+    REG_NO           VARCHAR2(40)  NOT NULL,
+    FIRST_NAME       VARCHAR2(60)  NOT NULL,
+    LAST_NAME        VARCHAR2(60)  NOT NULL,
+    EMAIL            VARCHAR2(120) NOT NULL,
+    PHONE            VARCHAR2(20),
+    DEPARTMENT       VARCHAR2(120) DEFAULT 'DEPARTMENT OF COMPUTER SCIENCE & ENGINEERING',
+    COURSE           VARCHAR2(120) DEFAULT 'B.TECH COMPUTER SCIENCE & ENGINEERING',
+    SEMESTER         NUMBER(2)     DEFAULT 6,
+    BATCH_CODE       VARCHAR2(30)  DEFAULT 'CSE-2023-BATCH-A',
+    ACADEMIC_STATUS  VARCHAR2(20)  DEFAULT 'ACTIVE' NOT NULL,
+    ATTENDANCE_LOCK  NUMBER(1)     DEFAULT 1 NOT NULL,      -- 1 = locked, 0 = unlocked by admin
+    ADVISOR          VARCHAR2(120) DEFAULT 'DR. P.K. SHARMA (HOD CSE)',
+    AVATAR_URL       VARCHAR2(255) DEFAULT 'akhil-dhiman.jpg',
+    CREATED_AT       TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT UK_STUDENT_ROLL UNIQUE (ROLL_NO),
+    CONSTRAINT UK_STUDENT_REG  UNIQUE (REG_NO),
+    CONSTRAINT UK_STUDENT_MAIL UNIQUE (EMAIL),
+    CONSTRAINT CK_STUDENT_STATUS CHECK (ACADEMIC_STATUS IN ('ACTIVE', 'DETAINED', 'SUSPENDED')),
+    CONSTRAINT CK_STUDENT_LOCK   CHECK (ATTENDANCE_LOCK IN (0, 1))
+);
+
+-- 3.4 TEACHERS ---------------------------------------------------------------
+CREATE TABLE HPU_TEACHER (
+    TEACHER_ID        NUMBER        PRIMARY KEY,
+    FACULTY_CODE      VARCHAR2(30)  NOT NULL,
+    FULL_NAME         VARCHAR2(120) NOT NULL,
+    DESIGNATION       VARCHAR2(120) NOT NULL,
+    DEPARTMENT        VARCHAR2(120) DEFAULT 'DEPARTMENT OF COMPUTER SCIENCE & ENGINEERING',
+    SPECIALIZATION    VARCHAR2(200),
+    EMAIL             VARCHAR2(120) NOT NULL,
+    PHONE             VARCHAR2(20),
+    OFFICE_LOCATION   VARCHAR2(120),
+    OFFICE_HOURS      VARCHAR2(80),
+    CABIN_STATUS      VARCHAR2(40)  DEFAULT 'ON CAMPUS',
+    GRADING_DEADLINE  TIMESTAMP,
+    WARNING_COUNT     NUMBER(2)     DEFAULT 0 NOT NULL,
+    WEEKLY_HOURS      NUMBER(3)     DEFAULT 0,
+    CREATED_AT        TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT UK_TEACHER_CODE UNIQUE (FACULTY_CODE),
+    CONSTRAINT UK_TEACHER_MAIL UNIQUE (EMAIL)
+);
+
+-- 3.5 COURSES ----------------------------------------------------------------
+CREATE TABLE HPU_COURSE (
+    COURSE_ID       NUMBER        PRIMARY KEY,
+    COURSE_CODE     VARCHAR2(20)  NOT NULL,
+    COURSE_NAME     VARCHAR2(180) NOT NULL,
+    CREDITS         NUMBER(2)     NOT NULL,
+    SEMESTER        NUMBER(2)     NOT NULL,
+    DEPARTMENT      VARCHAR2(120) DEFAULT 'DEPARTMENT OF COMPUTER SCIENCE & ENGINEERING',
+    INSTRUCTOR_ID   NUMBER        REFERENCES HPU_TEACHER (TEACHER_ID) ON DELETE SET NULL,
+    SYLLABUS_FILE   VARCHAR2(255),
+    TOPICS          CLOB,                                 -- JSON array of syllabus topics
+    CONSTRAINT UK_COURSE_CODE UNIQUE (COURSE_CODE)
+);
+
+-- 3.6 TEACHER -> COURSE/BATCH ALLOCATION -------------------------------------
+CREATE TABLE HPU_TEACHER_ALLOCATION (
+    ALLOCATION_ID  NUMBER       PRIMARY KEY,
+    TEACHER_ID     NUMBER       NOT NULL REFERENCES HPU_TEACHER (TEACHER_ID) ON DELETE CASCADE,
+    COURSE_ID      NUMBER       NOT NULL REFERENCES HPU_COURSE  (COURSE_ID)  ON DELETE CASCADE,
+    BATCH_CODE     VARCHAR2(30) NOT NULL,
+    SEMESTER       NUMBER(2)    NOT NULL,
+    ACADEMIC_YEAR  VARCHAR2(20) DEFAULT '2023-2024',
+    CONSTRAINT UK_ALLOC UNIQUE (TEACHER_ID, COURSE_ID, BATCH_CODE)
+);
+
+-- 3.7 ENROLLMENTS ------------------------------------------------------------
+CREATE TABLE HPU_ENROLLMENT (
+    ENROLLMENT_ID NUMBER       PRIMARY KEY,
+    STUDENT_ID    NUMBER       NOT NULL REFERENCES HPU_STUDENT (STUDENT_ID) ON DELETE CASCADE,
+    COURSE_ID     NUMBER       NOT NULL REFERENCES HPU_COURSE  (COURSE_ID)  ON DELETE CASCADE,
+    ENROLLED_AT   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT UK_ENROLL UNIQUE (STUDENT_ID, COURSE_ID)
+);
+
+-- 3.8 ATTENDANCE (per student, per course) -----------------------------------
+CREATE TABLE HPU_ATTENDANCE (
+    ATTENDANCE_ID      NUMBER     PRIMARY KEY,
+    STUDENT_ID         NUMBER     NOT NULL REFERENCES HPU_STUDENT (STUDENT_ID) ON DELETE CASCADE,
+    COURSE_ID          NUMBER     NOT NULL REFERENCES HPU_COURSE  (COURSE_ID)  ON DELETE CASCADE,
+    TOTAL_LECTURES     NUMBER(5)  DEFAULT 0 NOT NULL,
+    ATTENDED_LECTURES  NUMBER(5)  DEFAULT 0 NOT NULL,
+    LAST_SESSION_DATE  DATE,
+    LAST_UPDATED       TIMESTAMP  DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT UK_ATT UNIQUE (STUDENT_ID, COURSE_ID),
+    CONSTRAINT CK_ATT_RANGE CHECK (ATTENDED_LECTURES <= TOTAL_LECTURES)
+);
+
+-- 3.9 ATTENDANCE SESSIONS (audit of every lecture punch) ----------------------
+CREATE TABLE HPU_ATTENDANCE_SESSION (
+    SESSION_ID     NUMBER       PRIMARY KEY,
+    COURSE_ID      NUMBER       NOT NULL REFERENCES HPU_COURSE  (COURSE_ID)  ON DELETE CASCADE,
+    TEACHER_ID     NUMBER       REFERENCES HPU_TEACHER (TEACHER_ID) ON DELETE SET NULL,
+    SESSION_DATE   DATE         NOT NULL,
+    SLOT           VARCHAR2(60) NOT NULL,
+    BATCH_CODE     VARCHAR2(30) NOT NULL,
+    TOTAL_STUDENTS NUMBER(5)    NOT NULL,
+    PRESENT_COUNT  NUMBER(5)    NOT NULL,
+    ABSENT_COUNT   NUMBER(5)    NOT NULL,
+    LATE_COUNT     NUMBER(5)    DEFAULT 0 NOT NULL,
+    IS_REVISED     NUMBER(1)    DEFAULT 0 NOT NULL,
+    CREATED_AT     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 3.10 COLLEGIA MARKS --------------------------------------------------------
+CREATE TABLE HPU_MARK (
+    MARK_ID        NUMBER     PRIMARY KEY,
+    STUDENT_ID     NUMBER     NOT NULL REFERENCES HPU_STUDENT (STUDENT_ID) ON DELETE CASCADE,
+    COURSE_ID      NUMBER     NOT NULL REFERENCES HPU_COURSE  (COURSE_ID)  ON DELETE CASCADE,
+    INTERNAL_MARKS NUMBER(5,2) DEFAULT 0 NOT NULL,   -- out of 20
+    MIDTERM_MARKS  NUMBER(5,2) DEFAULT 0 NOT NULL,   -- out of 30
+    ENDTERM_MARKS  NUMBER(5,2) DEFAULT 0 NOT NULL,   -- out of 50
+    TOTAL_MARKS    NUMBER(5,2) DEFAULT 0 NOT NULL,
+    GRADE_LETTER   VARCHAR2(4),
+    GRADE_POINT    NUMBER(3,1),
+    UPDATED_BY     VARCHAR2(40),
+    UPDATED_AT     TIMESTAMP  DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT UK_MARK UNIQUE (STUDENT_ID, COURSE_ID),
+    CONSTRAINT CK_MARK_INTERNAL CHECK (INTERNAL_MARKS BETWEEN 0 AND 20),
+    CONSTRAINT CK_MARK_MIDTERM  CHECK (MIDTERM_MARKS  BETWEEN 0 AND 30),
+    CONSTRAINT CK_MARK_ENDTERM  CHECK (ENDTERM_MARKS  BETWEEN 0 AND 50)
+);
+
+-- 3.11 PREVIOUS YEAR QUESTION PAPERS -----------------------------------------
+CREATE TABLE HPU_PYQ_PAPER (
+    PAPER_ID    NUMBER       PRIMARY KEY,
+    COURSE_CODE VARCHAR2(20) NOT NULL,
+    SUBJECT_NAME VARCHAR2(180) NOT NULL,
+    YEAR        NUMBER(4)    NOT NULL,
+    EXAM_TYPE   VARCHAR2(40) DEFAULT 'END-TERM FINAL' NOT NULL,
+    FILE_URL    VARCHAR2(255) NOT NULL,
+    DOWNLOADS   NUMBER(6)    DEFAULT 0 NOT NULL,
+    UPLOADED_BY VARCHAR2(120) DEFAULT 'HPU EXAMINATION CELL'
+);
+
+-- 3.12 EXAM SCHEDULE ---------------------------------------------------------
+CREATE TABLE HPU_EXAM_SCHEDULE (
+    SCHEDULE_ID   NUMBER       PRIMARY KEY,
+    NOTIFICATION_NO VARCHAR2(60),
+    COURSE_CODE   VARCHAR2(20) NOT NULL,
+    SUBJECT_NAME  VARCHAR2(180) NOT NULL,
+    EXAM_DATE     DATE         NOT NULL,
+    EXAM_DAY      VARCHAR2(20) NOT NULL,
+    START_TIME    VARCHAR2(20) NOT NULL,
+    END_TIME      VARCHAR2(20) NOT NULL,
+    VENUE         VARCHAR2(160) NOT NULL,
+    EXAM_TYPE     VARCHAR2(30) DEFAULT 'THEORY' NOT NULL
+);
+
+-- 3.13 WORKSHEETS -------------------------------------------------------------
+CREATE TABLE HPU_WORKSHEET (
+    WORKSHEET_ID  NUMBER       PRIMARY KEY,
+    COURSE_CODE   VARCHAR2(20) NOT NULL REFERENCES HPU_COURSE (COURSE_CODE) ON DELETE CASCADE,
+    TITLE         VARCHAR2(240) NOT NULL,
+    BATCH_CODE    VARCHAR2(30) NOT NULL,
+    MAX_MARKS     NUMBER(5,2)  DEFAULT 20 NOT NULL,
+    DEADLINE_DATE TIMESTAMP    NOT NULL,
+    ATTACHMENT_URL VARCHAR2(255),
+    CREATED_BY    VARCHAR2(120) DEFAULT 'FACULTY',
+    CREATED_AT    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    IS_ACTIVE     NUMBER(1)    DEFAULT 1 NOT NULL
+);
+
+-- 3.14 WORKSHEET SUBMISSIONS -------------------------------------------------
+CREATE TABLE HPU_WORKSHEET_SUBMISSION (
+    SUBMISSION_ID    NUMBER        PRIMARY KEY,
+    WORKSHEET_ID     NUMBER        NOT NULL REFERENCES HPU_WORKSHEET (WORKSHEET_ID) ON DELETE CASCADE,
+    STUDENT_ID       NUMBER        NOT NULL REFERENCES HPU_STUDENT   (STUDENT_ID)   ON DELETE CASCADE,
+    SUBMITTED_FILE   VARCHAR2(255) NOT NULL,
+    SUBMITTED_AT     TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    EVALUATION_STATUS VARCHAR2(30) DEFAULT 'SUBMITTED' NOT NULL,
+    OBTAINED_MARKS   NUMBER(5,2),
+    TEACHER_REMARKS  VARCHAR2(255),
+    EVALUATED_BY     VARCHAR2(120),
+    EVALUATED_AT     TIMESTAMP,
+    CONSTRAINT UK_SUBMISSION UNIQUE (WORKSHEET_ID, STUDENT_ID),
+    CONSTRAINT CK_EVAL_STATUS CHECK (EVALUATION_STATUS IN
+        ('NOT SUBMITTED', 'SUBMITTED', 'UNDER EVALUATION', 'CHECKED & GRADED', 'LATE SUBMISSION'))
+);
+
+-- 3.15 E-LIBRARY -------------------------------------------------------------
+CREATE TABLE HPU_E_LIBRARY (
+    LIBRARY_ID  NUMBER        PRIMARY KEY,
+    TITLE       VARCHAR2(240) NOT NULL,
+    AUTHORS     VARCHAR2(240) NOT NULL,
+    CATEGORY    VARCHAR2(40)  NOT NULL,
+    SUBJECT     VARCHAR2(40)  NOT NULL,
+    PUBLISHER   VARCHAR2(160),
+    FILE_URL    VARCHAR2(255) NOT NULL,
+    PAGE_COUNT  NUMBER(5),
+    RATING      NUMBER(3,1)    DEFAULT 0 NOT NULL,
+    DESCRIPTION VARCHAR2(400)
+);
+
+-- 3.16 NOTICES / GAZETTE -----------------------------------------------------
+CREATE TABLE HPU_NOTICE (
+    NOTICE_ID NUMBER       PRIMARY KEY,
+    ISSUED_ON DATE         DEFAULT SYSDATE NOT NULL,
+    CATEGORY  VARCHAR2(60) NOT NULL,
+    TITLE     VARCHAR2(240) NOT NULL,
+    SUMMARY   VARCHAR2(600) NOT NULL,
+    ISSUED_BY VARCHAR2(120) DEFAULT 'HPU ADMINISTRATOR',
+    IS_PINNED NUMBER(1)    DEFAULT 0 NOT NULL
+);
+
+-- 3.17 AUTH SESSIONS (server-side token registry => real logout) --------------
+CREATE TABLE HPU_AUTH_SESSION (
+    SESSION_ID  VARCHAR2(64) PRIMARY KEY,        -- JWT "jti"
+    USER_CODE   VARCHAR2(40) NOT NULL REFERENCES HPU_USER_AUTH (USER_CODE) ON DELETE CASCADE,
+    ISSUED_AT   TIMESTAMP   DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    EXPIRES_AT  TIMESTAMP   NOT NULL,
+    USER_AGENT  VARCHAR2(200),
+    IP_ADDRESS  VARCHAR2(60),
+    REVOKED_AT  TIMESTAMP
+);
+
+-- 3.18 AUDIT LOG (append-only) ------------------------------------------------
+CREATE TABLE HPU_AUDIT_LOG (
+    LOG_ID      NUMBER       PRIMARY KEY,
+    ACTOR_ROLE  VARCHAR2(20),
+    ACTOR_NAME  VARCHAR2(120),
+    ACTOR_CODE  VARCHAR2(40),
+    ACTION      VARCHAR2(80) NOT NULL,
+    TARGET      VARCHAR2(240),
+    DETAILS     VARCHAR2(600),
+    IP_ADDRESS  VARCHAR2(60),
+    SEVERITY    VARCHAR2(20) DEFAULT 'INFO' NOT NULL,
+    CREATED_AT  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- -----------------------------------------------------------------------------
+-- 4. INDEXES
+-- -----------------------------------------------------------------------------
+CREATE INDEX IX_STUDENT_BATCH   ON HPU_STUDENT (BATCH_CODE, ACADEMIC_STATUS);
+CREATE INDEX IX_ENROLL_COURSE  ON HPU_ENROLLMENT (COURSE_ID);
+CREATE INDEX IX_ATT_COURSE     ON HPU_ATTENDANCE (COURSE_ID);
+CREATE INDEX IX_SESSION_COURSE ON HPU_ATTENDANCE_SESSION (COURSE_ID, SESSION_DATE DESC);
+CREATE INDEX IX_MARK_COURSE    ON HPU_MARK (COURSE_ID);
+CREATE INDEX IX_SUBMIT_WORKSHEET ON HPU_WORKSHEET_SUBMISSION (WORKSHEET_ID, EVALUATION_STATUS);
+CREATE INDEX IX_AUDIT_ACTION   ON HPU_AUDIT_LOG (ACTION, CREATED_AT DESC);
+CREATE INDEX IX_AUDIT_TIME     ON HPU_AUDIT_LOG (CREATED_AT DESC);
+CREATE INDEX IX_NOTICE_DATE    ON HPU_NOTICE (ISSUED_ON DESC);
+
+-- -----------------------------------------------------------------------------
+-- 5. PACKAGE  --  every write operation is exposed as a procedure so that
+--    business rules cannot be bypassed by ad-hoc DML from any client.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE PACKAGE HPU_PORTAL_PKG AS
+
+    -- Exposed for the views / reports
+    FUNCTION FN_COMPUTE_GRADE (p_total NUMBER) RETURN VARCHAR2;
+    FUNCTION FN_COMPUTE_POINT (p_total NUMBER) RETURN NUMBER;
+    FUNCTION FN_ATTENDANCE_STATUS (p_pct NUMBER) RETURN VARCHAR2;
+    FUNCTION FN_ACADEMIC_STATUS  (p_pct NUMBER) RETURN VARCHAR2;
+
+    -- Admin actions (maps to the two procedures required by the syllabus)
+    PROCEDURE UPDATE_STUDENT_STATUS (p_roll_no IN VARCHAR2, p_new_status IN VARCHAR2);
+    PROCEDURE UNLOCK_ATTENDANCE_PORTAL (p_roll_no IN VARCHAR2, p_unlock IN NUMBER);
+
+    -- Teacher actions
+    PROCEDURE PUNCH_ATTENDANCE (
+        p_course_code IN VARCHAR2,
+        p_batch_code  IN VARCHAR2,
+        p_session_date IN DATE,
+        p_slot        IN VARCHAR2,
+        p_records     IN SYS_REFCURSOR
+    );
+    PROCEDURE GRADE_WORKSHEET (
+        p_worksheet_id IN NUMBER,
+        p_roll_no      IN VARCHAR2,
+        p_marks        IN NUMBER,
+        p_remarks      IN VARCHAR2,
+        p_teacher      IN VARCHAR2
+    );
+    PROCEDURE COMMIT_COLLEGIA_MARKS (
+        p_roll_no   IN VARCHAR2,
+        p_course_code IN VARCHAR2,
+        p_internal  IN NUMBER,
+        p_midterm   IN NUMBER,
+        p_endterm   IN NUMBER
+    );
+    PROCEDURE PUBLISH_NOTICE (p_category IN VARCHAR2, p_title IN VARCHAR2, p_summary IN VARCHAR2);
+
+END HPU_PORTAL_PKG;
+/
+
+CREATE OR REPLACE PACKAGE BODY HPU_PORTAL_PKG AS
+
+    FUNCTION FN_COMPUTE_GRADE (p_total NUMBER) RETURN VARCHAR2 IS
+        l_grade VARCHAR2(4) := 'F';
+    BEGIN
+        SELECT GRADE_LETTER INTO l_grade
+          FROM HPU_GRADE_SCALE
+         WHERE p_total >= MIN_PERCENT AND p_total <= MAX_PERCENT;
+        RETURN l_grade;
+    EXCEPTION WHEN NO_DATA_FOUND THEN RETURN 'F';
+    END FN_COMPUTE_GRADE;
+
+    FUNCTION FN_COMPUTE_POINT (p_total NUMBER) RETURN NUMBER IS
+        l_point NUMBER := 0;
+    BEGIN
+        SELECT GRADE_POINT INTO l_point
+          FROM HPU_GRADE_SCALE
+         WHERE p_total >= MIN_PERCENT AND p_total <= MAX_PERCENT;
+        RETURN l_point;
+    EXCEPTION WHEN NO_DATA_FOUND THEN RETURN 0;
+    END FN_COMPUTE_POINT;
+
+    FUNCTION FN_ATTENDANCE_STATUS (p_pct NUMBER) RETURN VARCHAR2 IS
+    BEGIN
+        IF p_pct >= 75 THEN RETURN 'SAFE';
+        ELSIF p_pct >= 65 THEN RETURN 'WARNING';
+        ELSE RETURN 'CRITICAL';
+        END IF;
+    END FN_ATTENDANCE_STATUS;
+
+    FUNCTION FN_ACADEMIC_STATUS (p_pct NUMBER) RETURN VARCHAR2 IS
+    BEGIN
+        IF p_pct >= 75 THEN RETURN 'ACTIVE';
+        ELSIF p_pct >= 50 THEN RETURN 'DETAINED';
+        ELSE RETURN 'SUSPENDED';
+        END IF;
+    END FN_ACADEMIC_STATUS;
+
+    PROCEDURE UPDATE_STUDENT_STATUS (p_roll_no IN VARCHAR2, p_new_status IN VARCHAR2) IS
+    BEGIN
+        UPDATE HPU_STUDENT
+           SET ACADEMIC_STATUS = UPPER(p_new_status)
+         WHERE ROLL_NO = p_roll_no;
+        IF SQL%ROWCOUNT = 0 THEN
+            RAISE_APPLICATION_ERROR(-20001, 'Student ' || p_roll_no || ' not found.');
+        END IF;
+    END UPDATE_STUDENT_STATUS;
+
+    PROCEDURE UNLOCK_ATTENDANCE_PORTAL (p_roll_no IN VARCHAR2, p_unlock IN NUMBER) IS
+    BEGIN
+        UPDATE HPU_STUDENT
+           SET ATTENDANCE_LOCK = CASE WHEN p_unlock = 1 THEN 0 ELSE 1 END
+         WHERE ROLL_NO = p_roll_no;
+        IF SQL%ROWCOUNT = 0 THEN
+            RAISE_APPLICATION_ERROR(-20002, 'Student ' || p_roll_no || ' not found.');
+        END IF;
+    END UNLOCK_ATTENDANCE_PORTAL;
+
+    PROCEDURE PUNCH_ATTENDANCE (
+        p_course_code  IN VARCHAR2,
+        p_batch_code   IN VARCHAR2,
+        p_session_date IN DATE,
+        p_slot         IN VARCHAR2,
+        p_records      IN SYS_REFCURSOR
+    ) IS
+        l_roll      VARCHAR2(30);
+        l_status    VARCHAR2(10);
+        l_course_id NUMBER;
+        l_present   NUMBER := 0;
+        l_absent    NUMBER := 0;
+        l_total     NUMBER := 0;
+    BEGIN
+        SELECT COURSE_ID INTO l_course_id
+          FROM HPU_COURSE WHERE COURSE_CODE = p_course_code;
+
+        LOOP
+            FETCH p_records INTO l_roll, l_status;
+            EXIT WHEN p_records%NOTFOUND;
+            l_total := l_total + 1;
+            IF l_status = 'P' THEN l_present := l_present + 1;
+            ELSE l_absent := l_absent + 1;
+            END IF;
+
+            MERGE INTO HPU_ATTENDANCE a
+            USING (SELECT e.STUDENT_ID sid
+                     FROM HPU_ENROLLMENT e
+                    WHERE e.COURSE_ID = l_course_id
+                      AND EXISTS (SELECT 1 FROM HPU_STUDENT s
+                                   WHERE s.STUDENT_ID = e.STUDENT_ID
+                                     AND s.ROLL_NO = l_roll)) src
+               ON (a.STUDENT_ID = src.sid AND a.COURSE_ID = l_course_id)
+             WHEN MATCHED THEN UPDATE SET
+                    a.TOTAL_LECTURES    = a.TOTAL_LECTURES + 1,
+                    a.ATTENDED_LECTURES = a.ATTENDED_LECTURES +
+                        CASE WHEN l_status = 'P' THEN 1 ELSE 0 END,
+                    a.LAST_SESSION_DATE = p_session_date,
+                    a.LAST_UPDATED      = CURRENT_TIMESTAMP
+             WHEN NOT MATCHED THEN INSERT (ATTENDANCE_ID, STUDENT_ID, COURSE_ID,
+                    TOTAL_LECTURES, ATTENDED_LECTURES, LAST_SESSION_DATE)
+                  VALUES (SEQ_HPU_ATTENDANCE.NEXTVAL, src.sid, l_course_id, 1,
+                    CASE WHEN l_status = 'P' THEN 1 ELSE 0 END, p_session_date);
+        END LOOP;
+        CLOSE p_records;
+
+        INSERT INTO HPU_ATTENDANCE_SESSION
+              (SESSION_ID, COURSE_ID, SESSION_DATE, SLOT, BATCH_CODE,
+               TOTAL_STUDENTS, PRESENT_COUNT, ABSENT_COUNT)
+        VALUES (SEQ_HPU_SESSION.NEXTVAL, l_course_id, p_session_date, p_slot, p_batch_code,
+                l_total, l_present, l_absent);
+    END PUNCH_ATTENDANCE;
+
+    PROCEDURE GRADE_WORKSHEET (
+        p_worksheet_id IN NUMBER, p_roll_no IN VARCHAR2, p_marks IN NUMBER,
+        p_remarks IN VARCHAR2, p_teacher IN VARCHAR2
+    ) IS
+        l_max NUMBER;
+    BEGIN
+        SELECT MAX_MARKS INTO l_max FROM HPU_WORKSHEET WHERE WORKSHEET_ID = p_worksheet_id;
+        IF p_marks < 0 OR p_marks > l_max THEN
+            RAISE_APPLICATION_ERROR(-20003, 'Marks must be between 0 and ' || l_max);
+        END IF;
+        UPDATE HPU_WORKSHEET_SUBMISSION
+           SET OBTAINED_MARKS    = p_marks,
+               TEACHER_REMARKS   = p_remarks,
+               EVALUATED_BY      = p_teacher,
+               EVALUATED_AT      = CURRENT_TIMESTAMP,
+               EVALUATION_STATUS = 'CHECKED & GRADED'
+         WHERE WORKSHEET_ID = p_worksheet_id
+           AND STUDENT_ID IN (SELECT STUDENT_ID FROM HPU_STUDENT WHERE ROLL_NO = p_roll_no);
+
+        IF SQL%ROWCOUNT = 0 THEN
+            RAISE_APPLICATION_ERROR(-20006, 'No submission found for that worksheet and student.');
+        END IF;
+    END GRADE_WORKSHEET;
+
+    PROCEDURE COMMIT_COLLEGIA_MARKS (
+        p_roll_no IN VARCHAR2, p_course_code IN VARCHAR2,
+        p_internal IN NUMBER, p_midterm IN NUMBER, p_endterm IN NUMBER
+    ) IS
+        l_total  NUMBER := p_internal + p_midterm + p_endterm;
+        l_grade  VARCHAR2(4);
+        l_point  NUMBER;
+    BEGIN
+        l_grade := FN_COMPUTE_GRADE(l_total);
+        l_point := FN_COMPUTE_POINT(l_total);
+
+        MERGE INTO HPU_MARK m
+        USING (SELECT s.STUDENT_ID sid, c.COURSE_ID cid
+                 FROM HPU_STUDENT s, HPU_COURSE c
+                WHERE s.ROLL_NO = p_roll_no AND c.COURSE_CODE = p_course_code) src
+           ON (m.STUDENT_ID = src.sid AND m.COURSE_ID = src.cid)
+         WHEN MATCHED THEN UPDATE SET
+                m.INTERNAL_MARKS = p_internal, m.MIDTERM_MARKS = p_midterm,
+                m.ENDTERM_MARKS  = p_endterm, m.TOTAL_MARKS = l_total,
+                m.GRADE_LETTER   = l_grade,   m.GRADE_POINT   = l_point,
+                m.UPDATED_AT     = CURRENT_TIMESTAMP
+         WHEN NOT MATCHED THEN INSERT (MARK_ID, STUDENT_ID, COURSE_ID, INTERNAL_MARKS,
+                MIDTERM_MARKS, ENDTERM_MARKS, TOTAL_MARKS, GRADE_LETTER, GRADE_POINT)
+              VALUES (SEQ_HPU_MARK.NEXTVAL, src.sid, src.cid, p_internal, p_midterm,
+                      p_endterm, l_total, l_grade, l_point);
+    END COMMIT_COLLEGIA_MARKS;
+
+    PROCEDURE PUBLISH_NOTICE (p_category IN VARCHAR2, p_title IN VARCHAR2, p_summary IN VARCHAR2) IS
+    BEGIN
+        INSERT INTO HPU_NOTICE (NOTICE_ID, CATEGORY, TITLE, SUMMARY)
+        VALUES (SEQ_HPU_NOTICE.NEXTVAL, p_category, p_title, p_summary);
+    END PUBLISH_NOTICE;
+
+END HPU_PORTAL_PKG;
+/
+
+-- -----------------------------------------------------------------------------
+-- 6. TRIGGERS
+-- -----------------------------------------------------------------------------
+
+-- 6.1 Automatically derive TOTAL / GRADE / POINT whenever marks change.
+CREATE OR REPLACE TRIGGER TRG_MARK_BEFORE_INSERT_UPDATE
+BEFORE INSERT OR UPDATE OF INTERNAL_MARKS, MIDTERM_MARKS, ENDTERM_MARKS ON HPU_MARK
+FOR EACH ROW
+DECLARE
+    l_total NUMBER;
+BEGIN
+    l_total := :NEW.INTERNAL_MARKS + :NEW.MIDTERM_MARKS + :NEW.ENDTERM_MARKS;
+    :NEW.TOTAL_MARKS  := l_total;
+    :NEW.GRADE_LETTER := HPU_PORTAL_PKG.FN_COMPUTE_GRADE(l_total);
+    :NEW.GRADE_POINT  := HPU_PORTAL_PKG.FN_COMPUTE_POINT(l_total);
+    :NEW.UPDATED_AT   := CURRENT_TIMESTAMP;
+END;
+/
+
+-- 6.2 Worksheet submission marks may never exceed the worksheet maximum.
+CREATE OR REPLACE TRIGGER TRG_SUBMISSION_BEFORE_INSERT_UPDATE
+BEFORE INSERT OR UPDATE OF OBTAINED_MARKS ON HPU_WORKSHEET_SUBMISSION
+FOR EACH ROW
+DECLARE
+    l_max NUMBER;
+BEGIN
+    IF :NEW.OBTAINED_MARKS IS NOT NULL THEN
+        SELECT MAX_MARKS INTO l_max FROM HPU_WORKSHEET WHERE WORKSHEET_ID = :NEW.WORKSHEET_ID;
+        IF :NEW.OBTAINED_MARKS < 0 OR :NEW.OBTAINED_MARKS > l_max THEN
+            RAISE_APPLICATION_ERROR(-20004, 'Obtained marks must be between 0 and ' || l_max);
+        END IF;
+        :NEW.EVALUATION_STATUS := 'CHECKED & GRADED';
+        :NEW.EVALUATED_AT      := CURRENT_TIMESTAMP;
+    END IF;
+END;
+/
+
+-- 6.3 Derived attendance never exceeds lectures held.
+CREATE OR REPLACE TRIGGER TRG_ATTENDANCE_CAP
+BEFORE INSERT OR UPDATE OF ATTENDED_LECTURES ON HPU_ATTENDANCE
+FOR EACH ROW
+BEGIN
+    IF :NEW.ATTENDED_LECTURES > :NEW.TOTAL_LECTURES THEN
+        :NEW.ATTENDED_LECTURES := :NEW.TOTAL_LECTURES;
+    END IF;
+    IF :NEW.ATTENDED_LECTURES < 0 THEN
+        :NEW.ATTENDED_LECTURES := 0;
+    END IF;
+END;
+/
+
+-- 6.4 The audit log is append-only -- no UPDATE, no DELETE.
+CREATE OR REPLACE TRIGGER TRG_AUDIT_APPEND_ONLY
+BEFORE UPDATE OR DELETE ON HPU_AUDIT_LOG
+FOR EACH ROW
+BEGIN
+    RAISE_APPLICATION_ERROR(-20005, 'HPU_AUDIT_LOG is append-only and cannot be modified.');
+END;
+/
+
+-- -----------------------------------------------------------------------------
+-- 7. VIEWS -- read models consumed by the portal
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW V_ATTENDANCE_SUMMARY AS
+SELECT s.ROLL_NO,
+       s.FIRST_NAME || ' ' || s.LAST_NAME AS STUDENT_NAME,
+       c.COURSE_CODE,
+       c.COURSE_NAME,
+       c.CREDITS,
+       a.TOTAL_LECTURES,
+       a.ATTENDED_LECTURES,
+       CASE WHEN a.TOTAL_LECTURES = 0 THEN 0
+            ELSE ROUND(a.ATTENDED_LECTURES * 100 / a.TOTAL_LECTURES, 1) END AS PERCENTAGE,
+       HPU_PORTAL_PKG.FN_ATTENDANCE_STATUS(
+           CASE WHEN a.TOTAL_LECTURES = 0 THEN 0
+                ELSE a.ATTENDED_LECTURES * 100 / a.TOTAL_LECTURES END) AS ATTENDANCE_STATUS
+  FROM HPU_ATTENDANCE a
+  JOIN HPU_STUDENT s ON s.STUDENT_ID = a.STUDENT_ID
+  JOIN HPU_COURSE  c ON c.COURSE_ID  = a.COURSE_ID;
+
+CREATE OR REPLACE VIEW V_TRANSCRIPT AS
+SELECT s.ROLL_NO,
+       s.FIRST_NAME || ' ' || s.LAST_NAME AS STUDENT_NAME,
+       c.COURSE_CODE,
+       c.COURSE_NAME,
+       c.CREDITS,
+       m.INTERNAL_MARKS,
+       m.MIDTERM_MARKS,
+       m.ENDTERM_MARKS,
+       m.TOTAL_MARKS,
+       m.GRADE_LETTER,
+       m.GRADE_POINT
+  FROM HPU_MARK m
+  JOIN HPU_STUDENT s ON s.STUDENT_ID = m.STUDENT_ID
+  JOIN HPU_COURSE  c ON c.COURSE_ID  = m.COURSE_ID;
+
+CREATE OR REPLACE VIEW V_CLASS_SHEET AS
+SELECT c.COURSE_CODE,
+       c.COURSE_NAME,
+       s.ROLL_NO,
+       s.FIRST_NAME || ' ' || s.LAST_NAME AS STUDENT_NAME,
+       s.BATCH_CODE,
+       COALESCE(a.ATTENDED_LECTURES, 0) AS ATTENDED,
+       COALESCE(a.TOTAL_LECTURES, 0)    AS TOTAL,
+       s.ACADEMIC_STATUS,
+       CASE WHEN COALESCE(a.TOTAL_LECTURES, 0) = 0 THEN 0
+            ELSE ROUND(a.ATTENDED_LECTURES * 100 / a.TOTAL_LECTURES, 1) END AS PERCENTAGE
+  FROM HPU_COURSE c
+  JOIN HPU_ENROLLMENT e ON e.COURSE_ID = c.COURSE_ID
+  JOIN HPU_STUDENT   s ON s.STUDENT_ID = e.STUDENT_ID
+  LEFT JOIN HPU_ATTENDANCE a
+         ON a.STUDENT_ID = e.STUDENT_ID AND a.COURSE_ID = c.COURSE_ID;
+
+CREATE OR REPLACE VIEW V_PENDING_EVALUATIONS AS
+SELECT w.WORKSHEET_ID,
+       w.TITLE,
+       w.COURSE_CODE,
+       w.DEADLINE_DATE,
+       w.MAX_MARKS,
+       sub.SUBMISSION_ID,
+       s.ROLL_NO,
+       s.FIRST_NAME || ' ' || s.LAST_NAME AS STUDENT_NAME,
+       sub.SUBMITTED_AT,
+       sub.EVALUATION_STATUS
+  FROM HPU_WORKSHEET_SUBMISSION sub
+  JOIN HPU_WORKSHEET w ON w.WORKSHEET_ID = sub.WORKSHEET_ID
+  JOIN HPU_STUDENT   s ON s.STUDENT_ID   = sub.STUDENT_ID
+ WHERE sub.EVALUATION_STATUS IN ('SUBMITTED', 'UNDER EVALUATION');
+
+CREATE OR REPLACE VIEW V_STUDENT_DIRECTORY AS
+SELECT s.STUDENT_ID, s.ROLL_NO, s.REG_NO,
+       s.FIRST_NAME || ' ' || s.LAST_NAME AS STUDENT_NAME,
+       s.EMAIL, s.PHONE, s.BATCH_CODE, s.SEMESTER, s.ACADEMIC_STATUS,
+       CASE WHEN s.ATTENDANCE_LOCK = 1 THEN 'LOCKED' ELSE 'UNLOCKED' END AS PORTAL_ACCESS,
+       ROUND(AVG(v.PERCENTAGE), 1) AS AVERAGE_ATTENDANCE,
+       MAX(u.LAST_LOGIN_AT) AS LAST_LOGIN
+  FROM HPU_STUDENT s
+  LEFT JOIN V_ATTENDANCE_SUMMARY v ON v.ROLL_NO = s.ROLL_NO
+  LEFT JOIN HPU_USER_AUTH u         ON u.USER_CODE = s.ROLL_NO
+ GROUP BY s.STUDENT_ID, s.ROLL_NO, s.REG_NO,
+          s.FIRST_NAME || ' ' || s.LAST_NAME, s.EMAIL, s.PHONE, s.BATCH_CODE,
+          s.SEMESTER, s.ACADEMIC_STATUS, s.ATTENDANCE_LOCK, u.LAST_LOGIN_AT;
+
+CREATE OR REPLACE VIEW V_FACULTY_DIRECTORY AS
+SELECT t.TEACHER_ID, t.FACULTY_CODE, t.FULL_NAME, t.DESIGNATION,
+       t.SPECIALIZATION, t.EMAIL, t.PHONE, t.OFFICE_LOCATION,
+       t.OFFICE_HOURS, t.CABIN_STATUS, t.WARNING_COUNT,
+       COUNT(DISTINCT al.COURSE_ID) AS COURSES_ALLOCATED,
+       COUNT(DISTINCT al.BATCH_CODE) AS BATCHES_ALLOCATED
+  FROM HPU_TEACHER t
+  LEFT JOIN HPU_TEACHER_ALLOCATION al ON al.TEACHER_ID = t.TEACHER_ID
+ GROUP BY t.TEACHER_ID, t.FACULTY_CODE, t.FULL_NAME, t.DESIGNATION,
+          t.SPECIALIZATION, t.EMAIL, t.PHONE, t.OFFICE_LOCATION,
+          t.OFFICE_HOURS, t.CABIN_STATUS, t.WARNING_COUNT;
+
+COMMIT;
+
+-- -----------------------------------------------------------------------------
+-- 8. SEED DATASET
+--    Password hashes are PBKDF2-HMAC-SHA256 (240,000 rounds) over the
+--    concatenation  salt || ':' || password  with the per-user salt below.
+--    Regenerate with:  python3 backend/scripts/hash_passwords.py
+-- -----------------------------------------------------------------------------
+
+INSERT INTO HPU_GRADE_SCALE (GRADE_LETTER, MIN_PERCENT, MAX_PERCENT, GRADE_POINT, CLASSIFICATION) VALUES ('O',  90.00, 100.00, 10.0, 'OUTSTANDING');
+INSERT INTO HPU_GRADE_SCALE (GRADE_LETTER, MIN_PERCENT, MAX_PERCENT, GRADE_POINT, CLASSIFICATION) VALUES ('A+', 80.00,  89.99,  9.0, 'EXCELLENT');
+INSERT INTO HPU_GRADE_SCALE (GRADE_LETTER, MIN_PERCENT, MAX_PERCENT, GRADE_POINT, CLASSIFICATION) VALUES ('A',  70.00,  79.99,  8.0, 'VERY GOOD');
+INSERT INTO HPU_GRADE_SCALE (GRADE_LETTER, MIN_PERCENT, MAX_PERCENT, GRADE_POINT, CLASSIFICATION) VALUES ('B+', 60.00,  69.99,  7.0, 'GOOD');
+INSERT INTO HPU_GRADE_SCALE (GRADE_LETTER, MIN_PERCENT, MAX_PERCENT, GRADE_POINT, CLASSIFICATION) VALUES ('B',  50.00,  59.99,  6.0, 'SATISFACTORY');
+INSERT INTO HPU_GRADE_SCALE (GRADE_LETTER, MIN_PERCENT, MAX_PERCENT, GRADE_POINT, CLASSIFICATION) VALUES ('C',  45.00,  49.99,  5.0, 'AVERAGE');
+INSERT INTO HPU_GRADE_SCALE (GRADE_LETTER, MIN_PERCENT, MAX_PERCENT, GRADE_POINT, CLASSIFICATION) VALUES ('P',  40.00,  44.99,  4.0, 'PASS');
+INSERT INTO HPU_GRADE_SCALE (GRADE_LETTER, MIN_PERCENT, MAX_PERCENT, GRADE_POINT, CLASSIFICATION) VALUES ('F',   0.00,  39.99,  0.0, 'FAIL');
+
+-- Authenticated identities (3 demo accounts, the rest of the roster shares
+-- the student password pattern; see scripts/hash_passwords.py)
+INSERT INTO HPU_USER_AUTH (USER_ID, USER_CODE, EMAIL, PASSWORD_HASH, PASSWORD_SALT, ROLE, FULL_NAME, LAST_LOGIN_AT)
+VALUES (1, 'HPU-CS-2023-882', 'akhil.dhiman@hpu.ac.in',
+        '138fe5d737e2975e7a081685d0fb5c98a16f9318823c870407b49871a992fe99',
+        'b1f4c0e39a7d26851c4e0aa73f5d2b81',
+        'STUDENT', 'AKHIL DHIMAN', CURRENT_TIMESTAMP);
+
+INSERT INTO HPU_USER_AUTH (USER_ID, USER_CODE, EMAIL, PASSWORD_HASH, PASSWORD_SALT, ROLE, FULL_NAME, LAST_LOGIN_AT)
+VALUES (2, 'F-CS-02', 'prof.rsthakur@hpu.ac.in',
+        'a9be2a56dd0ab7ae364e114900b216aaddd9ecbbcae6633e6026bb218b3c2be5',
+        'c93a5e17b4d802f6a1c7e93b50d84f2a',
+        'TEACHER', 'PROF. R.S. THAKUR', CURRENT_TIMESTAMP);
+
+INSERT INTO HPU_USER_AUTH (USER_ID, USER_CODE, EMAIL, PASSWORD_HASH, PASSWORD_SALT, ROLE, FULL_NAME, LAST_LOGIN_AT)
+VALUES (3, 'ADMIN', 'admin@hpu.ac.in',
+        '248ad4c49deda5f743db5b77e2a2d54972c1ef2858baaf808a4421ac064c33cd',
+        '5e2f1b8d07a3c496be81d0f74a2c6935',
+        'ADMIN', 'SYSTEM ADMINISTRATOR', CURRENT_TIMESTAMP);
+
+INSERT INTO HPU_STUDENT (STUDENT_ID, ROLL_NO, REG_NO, FIRST_NAME, LAST_NAME, EMAIL, PHONE, SEMESTER, BATCH_CODE, ACADEMIC_STATUS, ATTENDANCE_LOCK, ADVISOR, AVATAR_URL)
+VALUES (1, 'HPU-CS-2023-882', '18-HPU-10293', 'AKHIL', 'DHIMAN', 'akhil.dhiman@hpu.ac.in', '+91 98160 12345', 6, 'CSE-2023-BATCH-A', 'ACTIVE', 0, 'DR. P.K. SHARMA (HOD CSE)', 'akhil-dhiman.jpg');
+
+INSERT INTO HPU_STUDENT (STUDENT_ID, ROLL_NO, REG_NO, FIRST_NAME, LAST_NAME, EMAIL, PHONE, SEMESTER, BATCH_CODE, ACADEMIC_STATUS, ATTENDANCE_LOCK, ADVISOR, AVATAR_URL)
+VALUES (2, 'HPU-CS-2023-883', '18-HPU-10294', 'PRIYA', 'SHARMA', 'priya.sharma@hpu.ac.in', '+91 98160 54321', 6, 'CSE-2023-BATCH-A', 'DETAINED', 1, 'DR. P.K. SHARMA (HOD CSE)', NULL);
+
+-- Full 24-student roster + 6 faculty are maintained in seed.sql, which is the
+-- executable demo dataset shared by the Oracle deployment and the local mirror.
+--   sqlplus hpu/hpu@HPU-CLUSTER-SHIMLA-01 @seed.sql
+
+COMMIT;
+
+PROMPT =============================================================================
+PROMPT   HPU_ACADEMIC_PORTAL schema installed successfully.
+PROMPT   Next:  sqlplus hpu/hpu@HPU-CLUSTER-SHIMLA-01 @seed.sql
+PROMPT =============================================================================

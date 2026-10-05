@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" data-page="teacher">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark light">
+<meta name="description" content="Faculty portal of Himachal Pradesh University — attendance punch, marks entry, worksheets and analytics.">
+<meta name="portal-sticky" content="true">
+<title>Faculty Portal · HPU Academic Portal</title>
+
+<!-- Theme applied before first paint: no flash of the wrong colour scheme. -->
+<script>
+(function () {
+  var THEMES = ['noir', 'graphite', 'hdr', 'cream', 'alabaster'];
+  var saved = null;
+  try { saved = localStorage.getItem('hpu.theme'); } catch (e) { /* private mode */ }
+  document.documentElement.setAttribute(
+    'data-theme',
+    THEMES.indexOf(saved) > -1 ? saved : 'noir'
+  );
+})();
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="icon" href="/media/hpu-logo.png">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/portals.css">
+</head>
+
+<body data-page="teacher">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<div class="boot" id="boot" role="status" aria-live="polite">
+  <div class="boot__inner">
+    <img src="/media/hpu-logo.png" alt="" width="46" height="46">
+    <p class="boot__brand">HPU Academic Portal</p>
+    <div class="boot__bar"><span></span></div>
+    <p class="mono faint" style="font-size:0.62rem;letter-spacing:0.16em">
+      VERIFYING FACULTY SESSION
+    </p>
+  </div>
+</div>
+
+<noscript>
+  <div class="auth-alert" style="margin:var(--space-m)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/>
+      <path d="M12 9v4"/><path d="M12 17h.01"/>
+    </svg>
+    <span>This portal needs JavaScript. Enable it and reload the page.</span>
+  </div>
+</noscript>
+
+<div id="app">
+  <div class="empty" style="padding:var(--space-2xl)">
+    <div class="loader"><span class="loader__spinner"></span></div>
+    <p class="empty__text">Loading the faculty workspace…</p>
+  </div>
+</div>
+
+<nav class="mobile-bar" id="mobileBar" aria-label="Quick sections"></nav>
+<div class="scrim" id="scrim" aria-hidden="true"></div>
+
+<script type="module" src="/assets/js/app.js"></script>
+</body>
+</html>

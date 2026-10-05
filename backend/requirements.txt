@@ -1,0 +1,20 @@
+# HPU Academic Portal -- backend dependencies
+#
+# Deliberately minimal. Password hashing (PBKDF2-HMAC-SHA256), the HS256 JWT
+# implementation and the SQLite data layer all come from the Python standard
+# library, so there is nothing to compile and every security decision can be
+# read in the source.
+
+Flask>=3.0,<4.0
+
+# Only needed when the frontend is hosted on a separate origin from the API.
+# With the bundled `python backend/app.py` the frontend is same-origin and this
+# package is not loaded at all.
+Flask-Cors>=4.0,<7.0
+
+# ---------------------------------------------------------------------------
+# Optional production extras (install manually when you need them)
+# ---------------------------------------------------------------------------
+# oracledb>=2.0            # HPU_DB_ENGINE=oracle -- real Oracle 19c/21c
+# gunicorn>=21.2           # production WSGI server on Linux
+# python-dotenv>=1.0       # load a .env file for HPU_* environment variables
