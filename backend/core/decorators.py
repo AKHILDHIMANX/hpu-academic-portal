@@ -9,6 +9,7 @@ used it to decide which credential set to verify.
 from __future__ import annotations
 
 import functools
+import os
 import time
 from datetime import datetime, timedelta
 
@@ -69,8 +70,15 @@ def load_principal() -> dict:
         raise AuthenticationError("This account has been deactivated.")
     if int(user.get("token_version", 1)) != int(claims.get("tv", 1)):
         raise AuthenticationError("Session invalidated. Please sign in again.")
-    if not users.is_session_active(claims.get("jti", ""), claims["sub"]):
-        raise AuthenticationError("Your session has expired or was signed out.")
+    # Serverless platforms (Vercel) run with an ephemeral per-instance SQLite
+    # database: each cold instance re-seeds and knows nothing of sessions
+    # registered on other instances, so a DB-backed active-session check can
+    # only ever fail there. For those, the HS256 signature, expiry and the
+    # token_version check are the session authority; on persistent databases
+    # we still consult hpu_auth_session for real revocation.
+    if not os.environ.get("VERCEL"):
+        if not users.is_session_active(claims.get("jti", ""), claims["sub"]):
+            raise AuthenticationError("Your session has expired or was signed out.")
 
     return {
         "user_code": user["user_code"],

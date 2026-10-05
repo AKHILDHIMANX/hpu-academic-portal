@@ -13,3 +13,4 @@ backend/uploads/
 
 # OS / editor
 .DS_Store
+.vercel
