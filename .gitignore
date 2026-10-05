@@ -7,7 +7,6 @@ venv/
 # Runtime data
 backend/data/
 backend/uploads/
-backend/assets/files/
 
 # Secrets / env
 .env
